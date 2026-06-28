@@ -39,9 +39,11 @@ data class Contact(
 @Composable
 fun ContactListScreen(
     onBack: () -> Unit,
-    onContactClick: (Contact) -> Unit
+    onContactClick: (Contact) -> Unit,
+    onContactsSynced: (Map<String, String>) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val db = remember { com.google.firebase.firestore.FirebaseFirestore.getInstance() }
     var contacts by remember { mutableStateOf<List<Contact>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     var hasPermission by remember {
@@ -70,7 +72,16 @@ fun ContactListScreen(
 
     LaunchedEffect(hasPermission) {
         if (hasPermission) {
-            contacts = fetchContacts(context)
+            val phoneContacts = fetchContacts(context)
+            contacts = phoneContacts // Show local contacts first
+            
+            // Send mapping to ViewModel for name resolution
+            onContactsSynced(phoneContacts.associate { it.phoneNumber to it.name })
+
+            // Sync with Firestore to see who is an app user
+            syncAppUsers(db, phoneContacts) { syncedList ->
+                contacts = syncedList
+            }
         } else {
             permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
         }
@@ -171,16 +182,51 @@ private fun fetchContacts(context: Context): List<Contact> {
 
         while (it.moveToNext()) {
             val name = it.getString(nameIndex) ?: "Unknown"
-            val number = it.getString(numberIndex) ?: ""
+            val rawNumber = it.getString(numberIndex) ?: ""
             val id = it.getString(idIndex) ?: ""
             
+            // Normalize the number: Remove spaces, dashes, parentheses
+            var cleanedNumber = rawNumber.replace("[^0-9+]".toRegex(), "")
+            
+            // If it's 10 digits, add +91
+            if (cleanedNumber.length == 10) {
+                cleanedNumber = "+91$cleanedNumber"
+            } else if (cleanedNumber.length == 11 && cleanedNumber.startsWith("0")) {
+                cleanedNumber = "+91" + cleanedNumber.substring(1)
+            } else if (cleanedNumber.startsWith("91") && cleanedNumber.length == 12) {
+                cleanedNumber = "+$cleanedNumber"
+            }
+            
             // Basic deduplication
-            if (contactList.none { c -> c.phoneNumber == number }) {
-                contactList.add(Contact(id, name, number, isAppUser = false))
+            if (cleanedNumber.isNotEmpty() && contactList.none { c -> c.phoneNumber == cleanedNumber }) {
+                contactList.add(Contact(id, name, cleanedNumber, isAppUser = false))
             }
         }
     }
     return contactList
+}
+
+private fun syncAppUsers(
+    db: com.google.firebase.firestore.FirebaseFirestore,
+    localContacts: List<Contact>,
+    onComplete: (List<Contact>) -> Unit
+) {
+    val phoneNumbers = localContacts.map { it.phoneNumber }
+    if (phoneNumbers.isEmpty()) return
+
+    // Firebase only allows 'in' query with 10 items. For simplicity here, 
+    // we query all users and match. In production, use smaller batches.
+    db.collection("users").get().addOnSuccessListener { querySnapshot ->
+        val registeredNumbers = querySnapshot.documents.map { it.id }
+        val updatedList = localContacts.map { contact ->
+            if (registeredNumbers.contains(contact.phoneNumber)) {
+                contact.copy(isAppUser = true)
+            } else {
+                contact
+            }
+        }.sortedByDescending { it.isAppUser } // Show app users at the top
+        onComplete(updatedList)
+    }
 }
 
 @Composable

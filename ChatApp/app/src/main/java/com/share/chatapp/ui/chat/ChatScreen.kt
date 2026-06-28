@@ -19,7 +19,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 
 enum class MessageStatus {
     SENT, DELIVERED, READ
@@ -37,19 +36,28 @@ data class Message(
 @Composable
 fun ChatScreen(
     contactName: String,
+    userStatus: String,
     messages: List<Message>,
     onSendMessage: (String) -> Unit,
+    onTyping: (Boolean) -> Unit,
     onBack: () -> Unit
 ) {
     var messageText by remember { mutableStateOf("") }
-    var userStatus by remember { mutableStateOf("Online") }
 
-    // Simulate "Typing..." status
-    LaunchedEffect(Unit) {
-        delay(3000)
-        userStatus = "typing..."
-        delay(2000)
-        userStatus = "Online"
+    // Detect typing (Real-time, no simulation)
+    LaunchedEffect(messageText) {
+        if (messageText.isNotEmpty()) {
+            onTyping(true)
+        } else {
+            onTyping(false)
+        }
+    }
+
+    // Stop typing indicator when leaving screen
+    DisposableEffect(Unit) {
+        onDispose {
+            onTyping(false)
+        }
     }
 
     Scaffold(

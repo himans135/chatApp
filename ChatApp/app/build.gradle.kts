@@ -40,6 +40,10 @@ android {
     }
 }
 
+base {
+    archivesName.set("ChatApp")
+}
+
 dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
