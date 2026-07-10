@@ -1,6 +1,9 @@
 package com.share.chatapp.ui.chat
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,7 +22,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 
 enum class MessageStatus {
     SENT, DELIVERED, READ
@@ -30,26 +32,38 @@ data class Message(
     val text: String,
     val isFromMe: Boolean,
     val time: String,
-    val status: MessageStatus = MessageStatus.SENT
+    val status: MessageStatus = MessageStatus.SENT,
+    val reactions: Map<String, List<String>> = emptyMap()
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     contactName: String,
+    userStatus: String,
     messages: List<Message>,
     onSendMessage: (String) -> Unit,
-    onBack: () -> Unit
+    onTyping: (Boolean) -> Unit,
+    onBack: () -> Unit,
+    onReaction: (String, String) -> Unit = { _, _ -> }
 ) {
     var messageText by remember { mutableStateOf("") }
-    var userStatus by remember { mutableStateOf("Online") }
+    var selectedMessageId by remember { mutableStateOf<String?>(null) }
 
-    // Simulate "Typing..." status
-    LaunchedEffect(Unit) {
-        delay(3000)
-        userStatus = "typing..."
-        delay(2000)
-        userStatus = "Online"
+    // Detect typing (Real-time, no simulation)
+    LaunchedEffect(messageText) {
+        if (messageText.isNotEmpty()) {
+            onTyping(true)
+        } else {
+            onTyping(false)
+        }
+    }
+
+    // Stop typing indicator when leaving screen
+    DisposableEffect(Unit) {
+        onDispose {
+            onTyping(false)
+        }
     }
 
     Scaffold(
@@ -122,14 +136,45 @@ fun ChatScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(messages) { message ->
-                MessageBubble(message)
+                MessageBubble(
+                    message = message,
+                    onLongClick = { selectedMessageId = message.id }
+                )
             }
         }
     }
+
+    if (selectedMessageId != null) {
+        AlertDialog(
+            onDismissRequest = { selectedMessageId = null },
+            confirmButton = {},
+            title = { Text("Select Reaction") },
+            text = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    listOf("❤️", "😂", "😮", "😢", "🙏", "👍").forEach { emoji ->
+                        Text(
+                            text = emoji,
+                            modifier = Modifier
+                                .clickable {
+                                    onReaction(selectedMessageId!!, emoji)
+                                    selectedMessageId = null
+                                }
+                                .padding(8.dp),
+                            fontSize = 28.sp
+                        )
+                    }
+                }
+            }
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MessageBubble(message: Message) {
+fun MessageBubble(message: Message, onLongClick: () -> Unit) {
     val alignment = if (message.isFromMe) Alignment.CenterEnd else Alignment.CenterStart
     val color = if (message.isFromMe) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
     val textColor = if (message.isFromMe) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
@@ -143,11 +188,32 @@ fun MessageBubble(message: Message) {
         Column(
             modifier = Modifier
                 .widthIn(max = 280.dp)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = onLongClick
+                )
                 .clip(shape)
                 .background(color)
                 .padding(12.dp)
         ) {
             Text(text = message.text, color = textColor, fontSize = 16.sp)
+            
+            if (message.reactions.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .background(Color.Black.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    message.reactions.forEach { (emoji, users) ->
+                        if (users.isNotEmpty()) {
+                            Text(text = "$emoji ${users.size}", fontSize = 10.sp, color = textColor)
+                        }
+                    }
+                }
+            }
+
             Row(
                 modifier = Modifier.align(Alignment.End),
                 verticalAlignment = Alignment.CenterVertically

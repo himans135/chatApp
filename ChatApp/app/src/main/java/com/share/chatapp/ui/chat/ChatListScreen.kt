@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 data class ChatSummary(
     val id: String,
     val name: String,
+    val phoneNumber: String,
     val lastMessage: String,
     val time: String,
     val unreadCount: Int = 0,
@@ -139,7 +140,7 @@ fun ChatListScreen(
 
                 ChatItem(
                     chat = chat,
-                    onClick = { onChatClick(chat.name) },
+                    onClick = { onChatClick(chat.phoneNumber) },
                     onLongClick = { showDeleteDialog = true }
                 )
                 HorizontalDivider(
@@ -195,6 +196,16 @@ fun ChatItem(chat: ChatSummary, onClick: () -> Unit, onLongClick: () -> Unit) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (chat.status == "Online" || chat.status == "typing...") {
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF25D366))
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = chat.time,
