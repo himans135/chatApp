@@ -140,7 +140,7 @@ fun ChatListScreen(
 
                 ChatItem(
                     chat = chat,
-                    onClick = { onChatClick(chat.name) },
+                    onClick = { onChatClick(chat.phoneNumber) },
                     onLongClick = { showDeleteDialog = true }
                 )
                 HorizontalDivider(

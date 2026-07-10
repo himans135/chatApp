@@ -158,6 +158,7 @@ class MainActivity : ComponentActivity() {
                     messages = chatViewModel.getMessages(phoneNumber),
                     onSendMessage = { text -> chatViewModel.sendMessage(phoneNumber, text) },
                     onTyping = { isTyping -> chatViewModel.updateTypingStatus(phoneNumber, isTyping) },
+                    onReaction = { messageId, emoji -> chatViewModel.toggleReaction(phoneNumber, messageId, emoji) },
                     onBack = { 
                         chatViewModel.updateTypingStatus(null, false)
                         navController.popBackStack() 
